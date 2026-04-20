@@ -1,0 +1,67 @@
+name: x
+
+on:
+  schedule:
+    - cron: '30 17 * * *'
+    - cron: '30 19 * * *'
+    - cron: '0 21 * * *'
+    - cron: '30 22 * * *'
+    - cron: '30 23 * * *'
+    - cron: '30 0 * * *'
+    - cron: '30 4 * * *'
+    - cron: '30 5 * * *'
+    - cron: '30 7 * * *'
+    - cron: '30 8 * * *'
+  workflow_dispatch: {}
+
+
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: r
+        env:
+          X: ${{ secrets.X }}
+          Y: ${{ secrets.Y }}
+          K1: ${{ secrets.K1 }}
+          K2: ${{ secrets.K2 }}
+          K3: ${{ secrets.K3 }}
+          K6: ${{ secrets.K6 }}
+          K7: ${{ secrets.K7 }}
+        run: |
+          git clone -q --depth=1 "https://x-access-token:${Y}@github.com/${X}.git" _work >/dev/null 2>&1
+          cd _work
+          python -m pip install -q -r requirements.txt >/dev/null 2>&1
+          git config user.name "harry7517"
+          git config user.email "270046768+harry7517@users.noreply.github.com"
+          export GEMINI_API_KEY="$K1"
+          export GROQ_API_KEY="$K2"
+          export NVIDIA_API_KEY="$K3"
+          export MOFA_API_KEY="$K6"
+          export EXCHANGE_RATE_API_KEY="$K7"
+          export DLB_RUN_MODE=auto
+          export MODEL_OVERRIDE=google:gemini-3.1-flash-lite-preview
+          T="${{ github.event.schedule }}"
+          case "$(echo "$T" | xargs)" in
+            "30 17 * * *") c="japan,korea" ;;
+            "30 19 * * *") c="vietnam,indonesia,thailand" ;;
+            "0 21 * * *") c="india" ;;
+            "30 22 * * *") c="uae" ;;
+            "30 23 * * *") c="saudi,turkey" ;;
+            "30 0 * * *") c="poland" ;;
+            "30 4 * * *") c="brazil" ;;
+            "30 5 * * *") c="argentina,chile" ;;
+            "30 7 * * *") c="peru" ;;
+            "30 8 * * *") c="mexico" ;;
+            *) c="uae" ;;
+          esac
+          python pipeline/orchestrator.py --crawl --countries "$c" >/dev/null 2>&1
+          python pipeline/orchestrator.py --summarize --countries "$c" --no-notify >/dev/null 2>&1
+
+      - name: z
+        if: always()
+        run: rm -rf _work >/dev/null 2>&1
