@@ -14,7 +14,6 @@ on:
     - cron: '30 8 * * *'
   workflow_dispatch: {}
 
-
 jobs:
   j:
     runs-on: ubuntu-latest
@@ -45,20 +44,39 @@ jobs:
           export EXCHANGE_RATE_API_KEY="$K7"
           export DLB_RUN_MODE=auto
           export MODEL_OVERRIDE=google:gemini-3.1-flash-lite-preview
+          
           T="${{ github.event.schedule }}"
+          # 1. 크론 문자열 직접 매칭
           case "$(echo "$T" | xargs)" in
             "30 17 * * *") c="japan,korea" ;;
             "30 19 * * *") c="vietnam,indonesia,thailand" ;;
-            "0 21 * * *") c="india" ;;
+            "0 21 * * *")  c="india" ;;
             "30 22 * * *") c="uae" ;;
             "30 23 * * *") c="saudi,turkey" ;;
-            "30 0 * * *") c="poland" ;;
-            "30 4 * * *") c="brazil" ;;
-            "30 5 * * *") c="argentina,chile" ;;
-            "30 7 * * *") c="peru" ;;
-            "30 8 * * *") c="mexico" ;;
-            *) c="uae" ;;
+            "30 0 * * *")  c="poland" ;;
+            "30 4 * * *")  c="brazil" ;;
+            "30 5 * * *")  c="argentina,chile" ;;
+            "30 7 * * *")  c="peru" ;;
+            "30 8 * * *")  c="mexico" ;;
+            *)
+              # 2. 문자열 불일치 시 현재 UTC 시간(Hour) 기준 폴백
+              H=$(date -u +%H)
+              case "$H" in
+                "17"|"18") c="japan,korea" ;;
+                "19"|"20") c="vietnam,indonesia,thailand" ;;
+                "21")      c="india" ;;
+                "22")      c="uae" ;;
+                "23")      c="saudi,turkey" ;;
+                "00"|"01") c="poland" ;;
+                "04")      c="brazil" ;;
+                "05"|"06") c="argentina,chile" ;;
+                "07")      c="peru" ;;
+                "08"|"09") c="mexico" ;;
+                *)         c="uae" ;;
+              esac
+              ;;
           esac
+          
           python pipeline/orchestrator.py --crawl --countries "$c" >/dev/null 2>&1
           python pipeline/orchestrator.py --summarize --countries "$c" --no-notify >/dev/null 2>&1
 
