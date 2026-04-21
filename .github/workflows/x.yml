@@ -46,7 +46,12 @@ jobs:
           export MODEL_OVERRIDE=google:gemini-3.1-flash-lite-preview
           
           T="${{ github.event.schedule }}"
-          # 1. 크론 문자열 직접 매칭
+          
+          # 00:30 UTC일 경우 환율 수집 별도 실행
+          if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
+            python pipeline/exchange.py "$(date -u +%Y-%m-%d)"
+          fi
+
           case "$(echo "$T" | xargs)" in
             "30 17 * * *") c="japan,korea" ;;
             "30 19 * * *") c="vietnam,indonesia,thailand" ;;
@@ -59,7 +64,6 @@ jobs:
             "30 7 * * *")  c="peru" ;;
             "30 8 * * *")  c="mexico" ;;
             *)
-              # 2. 문자열 불일치 시 현재 UTC 시간(Hour) 기준 폴백
               H=$(date -u +%H)
               case "$H" in
                 "17"|"18") c="japan,korea" ;;
