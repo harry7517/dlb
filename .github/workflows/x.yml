@@ -17,6 +17,9 @@ on:
 jobs:
   j:
     runs-on: ubuntu-latest
+    env:
+      DEBUG_VERBOSE: "1"
+      SUCCESS_TAIL_LINES: "120"
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -37,6 +40,8 @@ jobs:
           L="$RUNNER_TEMP/.x"
           mkdir -p "$L"
           C=""
+          DEBUG_VERBOSE="${DEBUG_VERBOSE:-0}"
+          SUCCESS_TAIL_LINES="${SUCCESS_TAIL_LINES:-80}"
 
           f() {
             local s="$1"
@@ -57,12 +62,26 @@ jobs:
             exit 1
           }
 
+          show_log() {
+            local s="$1"
+            local log="$2"
+            if [ -f "$log" ]; then
+              echo "::group::x:${s}"
+              tail -n "${SUCCESS_TAIL_LINES}" "$log"
+              echo "::endgroup::"
+            fi
+          }
+
           h() {
             local s="$1"
             shift
             local log="$L/${s}.log"
             if ! "$@" >"$log" 2>&1; then
               f "$s" "$log"
+            fi
+            if [ "$DEBUG_VERBOSE" = "1" ]; then
+              echo "::notice::x:ok:${s}"
+              show_log "${s}:ok" "$log"
             fi
           }
 
@@ -80,6 +99,7 @@ jobs:
           export MODEL_OVERRIDE=google:gemini-3.1-flash-lite-preview
           
           T="${{ github.event.schedule }}"
+          echo "::notice::x:schedule=${T:-manual}"
           
           # 00:30 UTC일 경우 환율 수집 별도 실행
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
@@ -114,6 +134,7 @@ jobs:
               esac
               ;;
           esac
+          echo "::notice::x:t=${C}"
           
           h c python pipeline/orchestrator.py --crawl --countries "$C"
           h s python pipeline/orchestrator.py --summarize --countries "$C" --no-notify
