@@ -96,7 +96,8 @@ jobs:
           export MOFA_API_KEY="$K6"
           export EXCHANGE_RATE_API_KEY="$K7"
           export DLB_RUN_MODE=auto
-          export MODEL_OVERRIDE=google:gemini-3.1-flash-lite-preview
+          export MODEL_PROVIDER_OVERRIDE=google,nim,groq
+          export MODEL_OVERRIDE=auto
           
           T="${{ github.event.schedule }}"
           echo "::notice::x:schedule=${T:-manual}"
