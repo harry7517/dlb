@@ -34,6 +34,7 @@ jobs:
           K3: ${{ secrets.K3 }}
           K6: ${{ secrets.K6 }}
           K7: ${{ secrets.K7 }}
+          K8: ${{ secrets.K8 }}
         run: |
           set -euo pipefail
 
@@ -95,8 +96,9 @@ jobs:
           export NVIDIA_API_KEY="$K3"
           export MOFA_API_KEY="$K6"
           export EXCHANGE_RATE_API_KEY="$K7"
+          export CEREBRAS_API_KEY="$K8"
           export DLB_RUN_MODE=auto
-          export MODEL_PROVIDER_OVERRIDE=google,nim,groq
+          export MODEL_PROVIDER_OVERRIDE=google,nim,groq,cerebras
           export MODEL_OVERRIDE=auto
           
           T="${{ github.event.schedule }}"
