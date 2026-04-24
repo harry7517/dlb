@@ -12,7 +12,24 @@ on:
     - cron: '30 5 * * *'
     - cron: '30 7 * * *'
     - cron: '30 8 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'publish or exchange'
+        required: false
+        default: publish
+        type: choice
+        options:
+          - publish
+          - exchange
+      date:
+        description: 'Target UTC date (YYYY-MM-DD)'
+        required: false
+        type: string
+      countries:
+        description: 'Optional countries override for publish mode'
+        required: false
+        type: string
 
 jobs:
   j:
@@ -102,45 +119,68 @@ jobs:
           export MODEL_OVERRIDE=auto
           
           T="${{ github.event.schedule }}"
+          M="$(echo "${{ github.event.inputs.mode }}" | xargs)"
+          D="$(echo "${{ github.event.inputs.date }}" | xargs)"
+          U="$(echo "${{ github.event.inputs.countries }}" | xargs)"
+          [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
           echo "::notice::x:schedule=${T:-manual}"
+          echo "::notice::x:mode=${M:-publish}"
+          echo "::notice::x:date=${D}"
+
+          if [ "$M" = "exchange" ]; then
+            h e python pipeline/exchange.py "$D"
+            h ga git add "web/content/${D}/exchange_rates.json"
+            if git diff --cached --quiet; then
+              echo "::notice::x:exchange=no_changes"
+            else
+              h gc git commit -m "exchange: ${D}"
+              h gp git push origin main
+            fi
+            exit 0
+          fi
           
           # 00:30 UTC일 경우 환율 수집 별도 실행
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
             h e python pipeline/exchange.py "$(date -u +%Y-%m-%d)"
           fi
 
-          case "$(echo "$T" | xargs)" in
-            "30 17 * * *") C="japan,korea" ;;
-            "30 19 * * *") C="vietnam,indonesia,thailand" ;;
-            "0 21 * * *")  C="india" ;;
-            "30 22 * * *") C="uae" ;;
-            "30 23 * * *") C="saudi,turkey" ;;
-            "30 0 * * *")  C="poland" ;;
-            "30 4 * * *")  C="brazil" ;;
-            "30 5 * * *")  C="argentina,chile" ;;
-            "30 7 * * *")  C="peru" ;;
-            "30 8 * * *")  C="mexico" ;;
-            *)
-              H=$(date -u +%H)
-              case "$H" in
-                "17"|"18") C="japan,korea" ;;
-                "19"|"20") C="vietnam,indonesia,thailand" ;;
-                "21")      C="india" ;;
-                "22")      C="uae" ;;
-                "23")      C="saudi,turkey" ;;
-                "00"|"01") C="poland" ;;
-                "04")      C="brazil" ;;
-                "05"|"06") C="argentina,chile" ;;
-                "07")      C="peru" ;;
-                "08"|"09") C="mexico" ;;
-                *)         C="uae" ;;
-              esac
-              ;;
-          esac
+          if [ -n "$U" ]; then
+            C="$U"
+          else
+
+            case "$(echo "$T" | xargs)" in
+              "30 17 * * *") C="japan,korea" ;;
+              "30 19 * * *") C="vietnam,indonesia,thailand" ;;
+              "0 21 * * *")  C="india" ;;
+              "30 22 * * *") C="uae" ;;
+              "30 23 * * *") C="saudi,turkey" ;;
+              "30 0 * * *")  C="poland" ;;
+              "30 4 * * *")  C="brazil" ;;
+              "30 5 * * *")  C="argentina,chile" ;;
+              "30 7 * * *")  C="peru" ;;
+              "30 8 * * *")  C="mexico" ;;
+              *)
+                H=$(date -u +%H)
+                case "$H" in
+                  "17"|"18") C="japan,korea" ;;
+                  "19"|"20") C="vietnam,indonesia,thailand" ;;
+                  "21")      C="india" ;;
+                  "22")      C="uae" ;;
+                  "23")      C="saudi,turkey" ;;
+                  "00"|"01") C="poland" ;;
+                  "04")      C="brazil" ;;
+                  "05"|"06") C="argentina,chile" ;;
+                  "07")      C="peru" ;;
+                  "08"|"09") C="mexico" ;;
+                  *)         C="uae" ;;
+                esac
+                ;;
+            esac
+          fi
           echo "::notice::x:t=${C}"
           
-          h c python pipeline/orchestrator.py --crawl --countries "$C"
-          h s python pipeline/orchestrator.py --summarize --countries "$C" --no-notify
+          h c python pipeline/orchestrator.py --crawl --date "$D" --countries "$C"
+          h s python pipeline/orchestrator.py --summarize --date "$D" --countries "$C" --no-notify
 
       - name: z
         if: always()
