@@ -141,7 +141,14 @@ jobs:
           
           # 00:30 UTC일 경우 환율 수집 별도 실행
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
-            h e python pipeline/exchange.py "$(date -u +%Y-%m-%d)"
+            h e python pipeline/exchange.py "$D"
+            h ega git add "web/content/${D}/exchange_rates.json"
+            if git diff --cached --quiet; then
+              echo "::notice::x:exchange=no_changes"
+            else
+              h egc git commit -m "exchange: ${D}"
+              h egp git push origin main
+            fi
           fi
 
           if [ -n "$U" ]; then
