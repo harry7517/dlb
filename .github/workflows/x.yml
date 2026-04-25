@@ -38,7 +38,7 @@ jobs:
       DEBUG_VERBOSE: "1"
       SUCCESS_TAIL_LINES: "120"
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -115,7 +115,9 @@ jobs:
           export EXCHANGE_RATE_API_KEY="$K7"
           export CEREBRAS_API_KEY="$K8"
           export DLB_RUN_MODE=auto
-          export MODEL_PROVIDER_OVERRIDE=google,nim,groq,cerebras
+          # Do not burn the most restrictive Gemini free-tier quota first on every scheduled run.
+          # Prefer broader fallback providers and keep Google as the last resort.
+          export MODEL_PROVIDER_OVERRIDE=nim,groq,cerebras,google
           export MODEL_OVERRIDE=auto
           
           T="${{ github.event.schedule }}"
