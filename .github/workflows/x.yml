@@ -118,7 +118,7 @@ jobs:
           # Do not burn the most restrictive Gemini free-tier quota first on every scheduled run.
           # Prefer broader fallback providers and keep Google as the last resort.
           export MODEL_PROVIDER_OVERRIDE=nim,groq,cerebras,google
-          export MODEL_OVERRIDE=auto
+          export MODEL_OVERRIDE=gemini-2.5-pro
           
           T="${{ github.event.schedule }}"
           M="$(echo "${{ github.event.inputs.mode }}" | xargs)"
@@ -130,7 +130,7 @@ jobs:
           echo "::notice::x:date=${D}"
 
           if [ "$M" = "exchange" ]; then
-            h e python pipeline/exchange.py "$D"
+            h e python -m pipeline.exchange "$D"
             h ga git add "web/content/${D}/exchange_rates.json"
             if git diff --cached --quiet; then
               echo "::notice::x:exchange=no_changes"
@@ -143,7 +143,7 @@ jobs:
           
           # 00:30 UTC일 경우 환율 수집 별도 실행
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
-            h e python pipeline/exchange.py "$D"
+            h e python -m pipeline.exchange "$D"
             h ega git add "web/content/${D}/exchange_rates.json"
             if git diff --cached --quiet; then
               echo "::notice::x:exchange=no_changes"
@@ -188,8 +188,8 @@ jobs:
           fi
           echo "::notice::x:t=${C}"
           
-          h c python pipeline/orchestrator.py --crawl --date "$D" --countries "$C"
-          h s python pipeline/orchestrator.py --summarize --date "$D" --countries "$C" --no-notify
+          h c python -m pipeline.orchestrator --crawl --date "$D" --countries "$C"
+          h s python -m pipeline.orchestrator --summarize --date "$D" --countries "$C" --no-notify
 
       - name: z
         if: always()
