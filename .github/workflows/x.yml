@@ -128,10 +128,14 @@ jobs:
           export EXCHANGE_RATE_API_KEY="$K7"
           export CEREBRAS_API_KEY="$K8"
           export DLB_RUN_MODE=auto
-          # Do not burn the most restrictive Gemini free-tier quota first on every scheduled run.
-          # Prefer broader fallback providers and keep Google as the last resort.
-          export MODEL_PROVIDER_OVERRIDE=nim,groq,cerebras,google
+          if [ -n "$K1" ]; then
+            echo "::notice::x:k1=set"
+          else
+            echo "::warning::x:k1=missing"
+          fi
+          export MODEL_PROVIDER_OVERRIDE=google,nim,groq,cerebras
           export MODEL_OVERRIDE=gemini-2.5-pro
+          echo "::notice::x:providers=${MODEL_PROVIDER_OVERRIDE}"
           
           T="${{ github.event.schedule }}"
           M="$(echo "${{ github.event.inputs.mode }}" | xargs)"
