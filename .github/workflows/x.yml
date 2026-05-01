@@ -31,6 +31,11 @@ on:
         description: 'Optional countries override for publish mode'
         required: false
         type: string
+      langs:
+        description: 'Optional language override for smoke mode'
+        required: false
+        default: en
+        type: string
 
 jobs:
   j:
@@ -102,7 +107,7 @@ jobs:
             local log="$2"
             if [ -f "$log" ]; then
               echo "::group::x:${s}:metrics"
-              grep -E "Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed" "$log" | tail -n 80 || true
+              grep -E "Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed" "$log" | tail -n 80 || true
               echo "::endgroup::"
             fi
           }
@@ -152,6 +157,7 @@ jobs:
           M="$(echo "${{ github.event.inputs.mode }}" | xargs)"
           D="$(echo "${{ github.event.inputs.date }}" | xargs)"
           U="$(echo "${{ github.event.inputs.countries }}" | xargs)"
+          G="$(echo "${{ github.event.inputs.langs }}" | xargs)"
           DATE_ARGS=()
           DATE_NOTICE="auto-local"
           if [ -n "$D" ]; then
@@ -164,9 +170,11 @@ jobs:
 
           if [ "$M" = "smoke" ]; then
             C="${U:-uae}"
+            G="${G:-en}"
             echo "::notice::x:t=${C}"
+            echo "::notice::x:langs=${G}"
             h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
-            h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --langs en --no-publish --no-notify
+            h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --langs "$G" --no-publish --no-notify
             exit 0
           fi
 
