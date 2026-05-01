@@ -22,6 +22,7 @@ on:
         options:
           - publish
           - exchange
+          - smoke
       date:
         description: 'Target UTC date (YYYY-MM-DD)'
         required: false
@@ -35,12 +36,18 @@ jobs:
   j:
     runs-on: ubuntu-latest
     env:
-      DEBUG_VERBOSE: "1"
-      SUCCESS_TAIL_LINES: "120"
+      DEBUG_VERBOSE: "0"
+      SUCCESS_TAIL_LINES: "80"
     steps:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-dlb-v1
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: r
         env:
@@ -94,9 +101,15 @@ jobs:
             local s="$1"
             shift
             local log="$L/${s}.log"
+            local start
+            local end
+            start="$(date +%s)"
+            echo "::notice::x:start:${s}"
             if ! "$@" >"$log" 2>&1; then
               f "$s" "$log"
             fi
+            end="$(date +%s)"
+            echo "::notice::x:elapsed:${s}=$((end-start))s"
             if [ "$DEBUG_VERBOSE" = "1" ]; then
               echo "::notice::x:ok:${s}"
               show_log "${s}:ok" "$log"
@@ -133,6 +146,14 @@ jobs:
           echo "::notice::x:schedule=${T:-manual}"
           echo "::notice::x:mode=${M:-publish}"
           echo "::notice::x:date=${DATE_NOTICE}"
+
+          if [ "$M" = "smoke" ]; then
+            C="${U:-uae}"
+            echo "::notice::x:t=${C}"
+            h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
+            h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --langs en --no-publish --no-notify
+            exit 0
+          fi
 
           if [ "$M" = "exchange" ]; then
             [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
