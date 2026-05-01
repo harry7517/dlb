@@ -97,6 +97,16 @@ jobs:
             fi
           }
 
+          show_metrics() {
+            local s="$1"
+            local log="$2"
+            if [ -f "$log" ]; then
+              echo "::group::x:${s}:metrics"
+              grep -E "Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed" "$log" | tail -n 80 || true
+              echo "::endgroup::"
+            fi
+          }
+
           h() {
             local s="$1"
             shift
@@ -110,6 +120,7 @@ jobs:
             fi
             end="$(date +%s)"
             echo "::notice::x:elapsed:${s}=$((end-start))s"
+            show_metrics "$s" "$log"
             if [ "$DEBUG_VERBOSE" = "1" ]; then
               echo "::notice::x:ok:${s}"
               show_log "${s}:ok" "$log"
