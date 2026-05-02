@@ -64,6 +64,7 @@ jobs:
           K6: ${{ secrets.K6 }}
           K7: ${{ secrets.K7 }}
           K8: ${{ secrets.K8 }}
+          K9: ${{ secrets.K9 }}
         run: |
           set -euo pipefail
 
@@ -143,13 +144,14 @@ jobs:
           export MOFA_API_KEY="$K6"
           export EXCHANGE_RATE_API_KEY="$K7"
           export CEREBRAS_API_KEY="$K8"
+          export MISTRAL_API_KEY="$K9"
           export DLB_RUN_MODE=auto
           if [ -n "$K1" ]; then
             echo "::notice::x:k1=set"
           else
             echo "::warning::x:k1=missing"
           fi
-          export MODEL_PROVIDER_OVERRIDE=google,nim,groq,cerebras
+          export MODEL_PROVIDER_OVERRIDE=google,mistral,nim,cerebras,groq
           export MODEL_OVERRIDE=gemini-2.5-pro
           echo "::notice::x:providers=${MODEL_PROVIDER_OVERRIDE}"
           
