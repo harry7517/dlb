@@ -15,13 +15,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'publish or exchange'
+        description: 'publish, exchange, calendar, or smoke'
         required: false
         default: publish
         type: choice
         options:
           - publish
           - exchange
+          - calendar
           - smoke
       date:
         description: 'Target UTC date (YYYY-MM-DD)'
@@ -193,19 +194,35 @@ jobs:
             fi
             exit 0
           fi
+
+          if [ "$M" = "calendar" ]; then
+            [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
+            echo "::notice::x:calendar_date=${D}"
+            h cal python -m pipeline.holiday_fetcher "$D"
+            h ca git add "web/content/holidays/status/${D}.json" web/content/holidays
+            if git diff --cached --quiet; then
+              echo "::notice::x:calendar=no_changes"
+            else
+              h cc git commit -m "calendar: ${D}"
+              h cp git push origin main
+            fi
+            exit 0
+          fi
           
-          # 00:30 UTC일 경우 환율 수집 별도 실행
+          # 00:30 UTC일 경우 환율과 달력 데이터를 하루 1회 갱신
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
             E="$D"
             [ -n "$E" ] || E="$(date -u +%Y-%m-%d)"
             echo "::notice::x:exchange_date=${E}"
+            echo "::notice::x:calendar_date=${E}"
             h e python -m pipeline.exchange "$E"
-            h ega git add "web/content/${E}/exchange_rates.json"
+            h cal python -m pipeline.holiday_fetcher "$E"
+            h sda git add "web/content/${E}/exchange_rates.json" "web/content/holidays/status/${E}.json" web/content/holidays
             if git diff --cached --quiet; then
-              echo "::notice::x:exchange=no_changes"
+              echo "::notice::x:side_data=no_changes"
             else
-              h egc git commit -m "exchange: ${E}"
-              h egp git push origin main
+              h sdc git commit -m "side-data: ${E}"
+              h sdp git push origin main
             fi
           fi
 
@@ -244,7 +261,7 @@ jobs:
           fi
           echo "::notice::x:t=${C}"
           
-          h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C"
+          h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
           h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --no-notify
 
       - name: z
