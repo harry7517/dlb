@@ -38,6 +38,10 @@ on:
         default: en
         type: string
 
+concurrency:
+  group: dlb-publish-main
+  cancel-in-progress: false
+
 jobs:
   j:
     runs-on: ubuntu-latest
@@ -109,7 +113,7 @@ jobs:
             local log="$2"
             if [ -f "$log" ]; then
               echo "::group::x:${s}:metrics"
-              grep -E "Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed" "$log" | tail -n 80 || true
+              grep -E "Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed|Push failed|rebase|CONFLICT|Committed|Pushed|Index refresh" "$log" | tail -n 80 || true
               echo "::endgroup::"
             fi
           }
