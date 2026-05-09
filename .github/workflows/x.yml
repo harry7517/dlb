@@ -1,4 +1,4 @@
-name: x
+name: Daily Local Brief Pipeline
 
 on:
   schedule:
@@ -33,9 +33,9 @@ on:
         required: false
         type: string
       langs:
-        description: 'Optional language override for smoke mode'
+        description: 'Optional language override for publish or smoke mode'
         required: false
-        default: en
+        default: ''
         type: string
 
 concurrency:
@@ -43,23 +43,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  j:
+  publish-briefings:
+    name: Publish briefings
     runs-on: ubuntu-latest
     env:
       DEBUG_VERBOSE: "0"
       SUCCESS_TAIL_LINES: "80"
     steps:
-      - uses: actions/setup-python@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: actions/cache@v4
+      - name: Restore pip cache
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-dlb-v1
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: r
+      - name: Run briefing pipeline
         env:
           X: ${{ secrets.X }}
           Y: ${{ secrets.Y }}
@@ -86,12 +89,12 @@ jobs:
             if [ -f "$log" ]; then
               last="$(tail -n 1 "$log" | sed 's/[[:space:]]\+/ /g' | cut -c1-220)"
             fi
-            echo "::error::x:${s}${last:+:${last}}"
+            echo "::error::pipeline:${s}${last:+:${last}}"
             if [ -n "$C" ]; then
-              echo "::notice::x:t=${C}"
+              echo "::notice::target_countries=${C}"
             fi
             if [ -f "$log" ]; then
-              echo "::group::x:${s}"
+              echo "::group::pipeline:${s}:tail"
               tail -n 20 "$log"
               echo "::endgroup::"
             fi
@@ -102,7 +105,7 @@ jobs:
             local s="$1"
             local log="$2"
             if [ -f "$log" ]; then
-              echo "::group::x:${s}"
+              echo "::group::pipeline:${s}:log"
               tail -n "${SUCCESS_TAIL_LINES}" "$log"
               echo "::endgroup::"
             fi
@@ -112,8 +115,8 @@ jobs:
             local s="$1"
             local log="$2"
             if [ -f "$log" ]; then
-              echo "::group::x:${s}:metrics"
-              grep -E "Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed|Push failed|rebase|CONFLICT|Committed|Pushed|Index refresh" "$log" | tail -n 80 || true
+              echo "::group::pipeline:${s}:metrics"
+              grep -E "Summarizing| via |Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed|Push failed|rebase|CONFLICT|Committed|Pushed|Index refresh" "$log" | tail -n 120 || true
               echo "::endgroup::"
             fi
           }
@@ -124,23 +127,28 @@ jobs:
             local log="$L/${s}.log"
             local start
             local end
+            local status
             start="$(date +%s)"
-            echo "::notice::x:start:${s}"
-            if ! "$@" >"$log" 2>&1; then
+            echo "::notice::pipeline:start:${s}"
+            set +e
+            "$@" 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -ne 0 ]; then
               f "$s" "$log"
             fi
             end="$(date +%s)"
-            echo "::notice::x:elapsed:${s}=$((end-start))s"
+            echo "::notice::pipeline:elapsed:${s}=$((end-start))s"
             show_metrics "$s" "$log"
             if [ "$DEBUG_VERBOSE" = "1" ]; then
-              echo "::notice::x:ok:${s}"
+              echo "::notice::pipeline:ok:${s}"
               show_log "${s}:ok" "$log"
             fi
           }
 
-          h g git clone -q --depth=1 "https://x-access-token:${Y}@github.com/${X}.git" _work
+          h clone-private-repo git clone -q --depth=1 "https://x-access-token:${Y}@github.com/${X}.git" _work
           cd _work
-          h p python -m pip install -q -r requirements.txt
+          h install-python-deps python -u -m pip install -q -r requirements.txt
           git config user.name "harry7517"
           git config user.email "270046768+harry7517@users.noreply.github.com"
           export GEMINI_API_KEY="$K1"
@@ -152,13 +160,13 @@ jobs:
           export MISTRAL_API_KEY="$K9"
           export DLB_RUN_MODE=auto
           if [ -n "$K1" ]; then
-            echo "::notice::x:k1=set"
+            echo "::notice::gemini_key=set"
           else
-            echo "::warning::x:k1=missing"
+            echo "::warning::gemini_key=missing"
           fi
           export MODEL_PROVIDER_OVERRIDE=google,mistral,nim,cerebras,groq
           export MODEL_OVERRIDE=gemini-2.5-pro
-          echo "::notice::x:providers=${MODEL_PROVIDER_OVERRIDE}"
+          echo "::notice::providers=${MODEL_PROVIDER_OVERRIDE}"
           
           T="${{ github.event.schedule }}"
           M="$(echo "${{ github.event.inputs.mode }}" | xargs)"
@@ -171,44 +179,49 @@ jobs:
             DATE_ARGS=(--date "$D")
             DATE_NOTICE="$D"
           fi
-          echo "::notice::x:schedule=${T:-manual}"
-          echo "::notice::x:mode=${M:-publish}"
-          echo "::notice::x:date=${DATE_NOTICE}"
+          LANG_ARGS=()
+          if [ -n "$G" ]; then
+            LANG_ARGS=(--langs "$G")
+          fi
+          echo "::notice::schedule=${T:-manual}"
+          echo "::notice::mode=${M:-publish}"
+          echo "::notice::date=${DATE_NOTICE}"
 
           if [ "$M" = "smoke" ]; then
             C="${U:-uae}"
             G="${G:-en}"
-            echo "::notice::x:t=${C}"
-            echo "::notice::x:langs=${G}"
-            h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
-            h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --langs "$G" --no-publish --no-notify
+            LANG_ARGS=(--langs "$G")
+            echo "::notice::target_countries=${C}"
+            echo "::notice::target_langs=${G}"
+            h crawl python -u -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
+            h smoke-summarize python -u -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" "${LANG_ARGS[@]}" --no-publish --no-notify
             exit 0
           fi
 
           if [ "$M" = "exchange" ]; then
             [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
-            echo "::notice::x:exchange_date=${D}"
-            h e python -m pipeline.exchange "$D"
-            h ga git add "web/content/${D}/exchange_rates.json"
+            echo "::notice::exchange_date=${D}"
+            h exchange python -u -m pipeline.exchange "$D"
+            h stage-exchange git add "web/content/${D}/exchange_rates.json"
             if git diff --cached --quiet; then
-              echo "::notice::x:exchange=no_changes"
+              echo "::notice::exchange=no_changes"
             else
-              h gc git commit -m "exchange: ${D}"
-              h gp git push origin main
+              h commit-exchange git commit -m "exchange: ${D}"
+              h push-exchange git push origin main
             fi
             exit 0
           fi
 
           if [ "$M" = "calendar" ]; then
             [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
-            echo "::notice::x:calendar_date=${D}"
-            h cal python -m pipeline.holiday_fetcher "$D"
-            h ca git add "web/content/holidays/status/${D}.json" web/content/holidays
+            echo "::notice::calendar_date=${D}"
+            h calendar python -u -m pipeline.holiday_fetcher "$D"
+            h stage-calendar git add "web/content/holidays/status/${D}.json" web/content/holidays
             if git diff --cached --quiet; then
-              echo "::notice::x:calendar=no_changes"
+              echo "::notice::calendar=no_changes"
             else
-              h cc git commit -m "calendar: ${D}"
-              h cp git push origin main
+              h commit-calendar git commit -m "calendar: ${D}"
+              h push-calendar git push origin main
             fi
             exit 0
           fi
@@ -217,16 +230,16 @@ jobs:
           if [ "$(echo "$T" | xargs)" = "30 0 * * *" ]; then
             E="$D"
             [ -n "$E" ] || E="$(date -u +%Y-%m-%d)"
-            echo "::notice::x:exchange_date=${E}"
-            echo "::notice::x:calendar_date=${E}"
-            h e python -m pipeline.exchange "$E"
-            h cal python -m pipeline.holiday_fetcher "$E"
-            h sda git add "web/content/${E}/exchange_rates.json" "web/content/holidays/status/${E}.json" web/content/holidays
+            echo "::notice::exchange_date=${E}"
+            echo "::notice::calendar_date=${E}"
+            h exchange python -u -m pipeline.exchange "$E"
+            h calendar python -u -m pipeline.holiday_fetcher "$E"
+            h stage-side-data git add "web/content/${E}/exchange_rates.json" "web/content/holidays/status/${E}.json" web/content/holidays
             if git diff --cached --quiet; then
-              echo "::notice::x:side_data=no_changes"
+              echo "::notice::side_data=no_changes"
             else
-              h sdc git commit -m "side-data: ${E}"
-              h sdp git push origin main
+              h commit-side-data git commit -m "side-data: ${E}"
+              h push-side-data git push origin main
             fi
           fi
 
@@ -263,11 +276,16 @@ jobs:
                 ;;
             esac
           fi
-          echo "::notice::x:t=${C}"
+          echo "::notice::target_countries=${C}"
+          if [ -n "$G" ]; then
+            echo "::notice::target_langs=${G}"
+          else
+            echo "::notice::target_langs=all configured languages"
+          fi
           
-          h c python -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
-          h s python -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" --no-notify
+          h crawl python -u -m pipeline.orchestrator --crawl "${DATE_ARGS[@]}" --countries "$C" --skip-side-data
+          h summarize-and-publish python -u -m pipeline.orchestrator --summarize "${DATE_ARGS[@]}" --countries "$C" "${LANG_ARGS[@]}" --no-notify
 
-      - name: z
+      - name: Clean workspace
         if: always()
         run: rm -rf _work >/dev/null 2>&1
