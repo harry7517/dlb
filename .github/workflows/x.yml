@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'publish, exchange, calendar, or smoke'
+        description: 'publish, exchange, calendar, facebook, or smoke'
         required: false
         default: publish
         type: choice
@@ -23,6 +23,7 @@ on:
           - publish
           - exchange
           - calendar
+          - facebook
           - smoke
       date:
         description: 'Target UTC date (YYYY-MM-DD)'
@@ -236,6 +237,21 @@ jobs:
               h commit-calendar git commit -m "calendar: ${D}"
               h push-calendar git push origin main
             fi
+            exit 0
+          fi
+
+          if [ "$M" = "facebook" ]; then
+            [ -n "$D" ] || D="$(date -u +%Y-%m-%d)"
+            if [ -n "$U" ]; then
+              C="$U"
+              COUNTRY_ARGS=(--country "$C")
+              echo "::notice::target_countries=${C}"
+            else
+              COUNTRY_ARGS=()
+              echo "::notice::target_countries=rotation"
+            fi
+            echo "::notice::facebook_date=${D}"
+            h facebook-update python -u -m pipeline.facebook_publisher --date "$D" "${COUNTRY_ARGS[@]}" --update-existing
             exit 0
           fi
           
