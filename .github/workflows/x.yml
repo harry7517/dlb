@@ -73,6 +73,10 @@ jobs:
           K7: ${{ secrets.K7 }}
           K8: ${{ secrets.K8 }}
           K9: ${{ secrets.K9 }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_API_VERSION: ${{ secrets.FACEBOOK_API_VERSION }}
+          FACEBOOK_DRY_RUN: ${{ secrets.FACEBOOK_DRY_RUN }}
         run: |
           set -euo pipefail
 
@@ -116,7 +120,7 @@ jobs:
             local log="$2"
             if [ -f "$log" ]; then
               echo "::group::pipeline:${s}:metrics"
-              grep -E "Summarizing| via |Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed|Push failed|rebase|CONFLICT|Committed|Pushed|Index refresh" "$log" | tail -n 120 || true
+              grep -E "Summarizing| via |Embassy notices|Failed to fetch embassy RSS|MOFA|Token budget|Token usage|Section count|Published only|Crawl feeds completed|Stage [12].*(complete|elapsed)|Publish elapsed|Push failed|rebase|CONFLICT|Committed|Pushed|Index refresh|Facebook" "$log" | tail -n 120 || true
               echo "::endgroup::"
             fi
           }
@@ -158,11 +162,20 @@ jobs:
           export EXCHANGE_RATE_API_KEY="$K7"
           export CEREBRAS_API_KEY="$K8"
           export MISTRAL_API_KEY="$K9"
+          export FACEBOOK_PAGE_ID="${FACEBOOK_PAGE_ID:-61589391941659}"
+          export FACEBOOK_PAGE_ACCESS_TOKEN="${FACEBOOK_PAGE_ACCESS_TOKEN:-}"
+          export FACEBOOK_API_VERSION="${FACEBOOK_API_VERSION:-v24.0}"
+          export FACEBOOK_DRY_RUN="${FACEBOOK_DRY_RUN:-}"
           export DLB_RUN_MODE=auto
           if [ -n "$K1" ]; then
             echo "::notice::gemini_key=set"
           else
             echo "::warning::gemini_key=missing"
+          fi
+          if [ -n "$FACEBOOK_PAGE_ACCESS_TOKEN" ]; then
+            echo "::notice::facebook_page_token=set"
+          else
+            echo "::warning::facebook_page_token=missing"
           fi
           export MODEL_PROVIDER_OVERRIDE=google,mistral,nim,cerebras,groq
           export MODEL_OVERRIDE=gemini-2.5-pro
